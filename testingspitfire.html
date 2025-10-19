@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Plane Cursor Overlay</title>
+  <style>
+    html,body { height:100%; margin:0; background:transparent;}
+    /* hide native cursor inside the iframe */
+    body, * { cursor: none !important; }
+
+    /* The plane image that follows the cursor */
+    img#planeCursor {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 48px;            /* adjust size (px) */
+      height: auto;
+      transform: translate(-50%, -50%) rotate(0deg);
+      pointer-events: none;   /* don't block clicks */
+      z-index: 2147483647;    /* very high so it sits on top inside iframe */
+      transition: transform 0.12s linear;
+      will-change: transform, left, top;
+      mix-blend-mode: normal;
+    }
+
+    /* Optional: let the iframe itself be transparent so it overlays the host page nicely */
+    body { background: transparent; }
+  </style>
+</head>
+<body>
+  <!-- Use your PNG URL here. If you host a copy yourself, replace the src with your hosted URL -->
+  <img id="planeCursor" src="https://www.nicepng.com/png/full/126-1268554_spitfire-plane-without-background.png" alt="cursor">
+
+  <script>
+    (function () {
+      const img = document.getElementById('planeCursor');
+      // tune these for smoothing
+      let x = window.innerWidth / 2;
+      let y = window.innerHeight / 2;
+      let tx = x, ty = y;
+      const followSpeed = 0.18; // 0.05 - 0.4 (lower = more lag)
+      let lastMove = performance.now();
+      let angle = 0;
+
+      // track pointer (mouse & touch)
+      function onMove(clientX, clientY) {
+        tx = clientX;
+        ty = clientY;
+        lastMove = performance.now();
+      }
+      window.addEventListener('pointermove', e => onMove(e.clientX, e.clientY), {passive:true});
+      window.addEventListener('mousemove', e => onMove(e.clientX, e.clientY), {passive:true});
+      window.addEventListener('touchmove', e => {
+        if (e.touches[0]) onMove(e.touches[0].clientX, e.touches[0].clientY);
+      }, {passive:true});
+
+      // hide if pointer leaves iframe area
+      window.addEventListener('pointerleave', () => img.style.opacity = '0.0');
+      window.addEventListener('pointerenter', () => img.style.opacity = '1.0');
+
+      // animation loop — lerp for smoothing, rotate slightly based on velocity
+      function raf() {
+        const dx = tx - x;
+        const dy = ty - y;
+        x += dx * followSpeed;
+        y += dy * followSpeed;
+
+        // compute heading for subtle rotation (optional)
+        const vel = Math.sqrt(dx*dx + dy*dy);
+        // heading in radians
+        const heading = Math.atan2(dy, dx);
+        // convert to degrees and tilt for a plane look
+        angle = heading * 180 / Math.PI + 90; // rotate so plane "points" towards movement
+        // clamp/soften angle changes to avoid jitter
+        img.style.transform = `translate(-50%, -50%) rotate(${angle.toFixed(1)}deg)`;
+
+        img.style.left = x + 'px';
+        img.style.top = y + 'px';
+
+        requestAnimationFrame(raf);
+      }
+      requestAnimationFrame(raf);
+
+      // responsive: scale plane size a bit for smaller screens
+      function adaptSize() {
+        const w = Math.min(window.innerWidth, 900);
+        let size = 48;
+        if (w < 600) size = 36;
+        if (w < 380) size = 28;
+        img.style.width = size + 'px';
+      }
+      window.addEventListener('resize', adaptSize, {passive:true});
+      adaptSize();
+
+      // If the external PNG fails due to CORS or network, we try to fall back gracefully:
+      img.onerror = function () {
+        // optional: replace with a small inline SVG data-URL as a fallback
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><circle cx="24" cy="24" r="10" fill="#ff5"/></svg>'
+        );
+      };
+    })();
+  </script>
+</body>
+</html>
